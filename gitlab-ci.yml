@@ -1,0 +1,55 @@
+variables:
+  IMAGE_NAME: ${REGISTRY_DOMAIN}/${PROJECT_NAME}/${CI_PROJECT_NAME}:${CI_COMMIT_TAG}_${CI_COMMIT_SHORT_SHA}
+  INST_NAME: shop-${CI_COMMIT_TAG}_${CI_COMMIT_SHORT_SHA}
+stages: 
+  - build
+  - deploy
+  - showlog
+
+build:
+  stage: build
+  variables:
+    GIT_STRATEGY: clone
+  before_script:
+    - docker login $REGISTRY_DOMAIN -u $REGISTRY_USERNAME -p $REGISTRY_PASSWD 
+  script:
+    - docker build -t  $IMAGE_NAME .
+    - docker images
+    - docker push $IMAGE_NAME
+  tags:
+    - gitlab-server
+  only:
+    - tags
+
+deploy: 
+  stage: deploy
+  variables:
+    GIT_STRATEGY: none
+  when: manual  
+  before_script:
+    - docker login $REGISTRY_DOMAIN -u $REGISTRY_USERNAME -p $REGISTRY_PASSWD 
+  script:
+    - docker pull $IMAGE_NAME
+		- docker run --name $INST_NAME -dp 3030:8080 $IMAGE_NAME
+  tags:
+    - gitlab-server  
+  only:
+    - tags
+  needs:
+    - build
+
+showlog:
+  stage: showlog
+  variables:
+    GIT_STRATEGY: none
+  when: manual  
+  script:
+    - echo "Waiting for application to start..."
+    - echo "========== Application Logs (Last 30 lines) =========="
+    - docker logs -n 30 $INST_NAME
+  tags:
+    - gitlab-server    
+  only:
+    - tags
+  needs:
+    - deploy
